@@ -212,6 +212,24 @@ class WingWeightReduced:
             Sw = self.Sw_dist.rvs(n_samples)
             return Sw
   
+
+    def compute_weight(self, Sw_val, Fw_val, A_val, sweep_val, q_val, tp_val, tc_val, Nz_val, W_val, p_val):
+        """
+        Compute wing weight as a function of all 10 variables (call from within for loops or directly on grids of parameters)
+        """
+        fac1 = 0.036 * (Sw_val**0.758) * (Fw_val**0.0035)
+        fac2 = (A_val / (np.cos(sweep_val * np.pi / 180)) ** 2) ** 0.6
+        fac3 = q_val**0.006 * (tp_val**0.04)
+        fac4 = (100 * tc_val / np.cos(sweep_val * np.pi / 180))**(-0.3)
+        fac5 = (Nz_val * W_val)**0.49
+        term1 = Sw_val * p_val
+
+        W_wing = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+
+        return W_wing
+
+
+
     def sample(self, n_samples):
         """
         Compute wing weight as a function of all 10 variables (3 varying, 7 fixed)
@@ -222,28 +240,13 @@ class WingWeightReduced:
             W_wing = np.zeros(n_samples)
 
             for i in range(n_samples):
-                fac1 = 0.036 * (Sw_samples[i]**0.758) * (self.Fw**0.0035)
-                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-                fac3 = self.q**0.006 * (self.tp**0.04)
-                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-                fac5 = (Nz_samples[i] * self.W)**0.49
-                term1 = Sw_samples[i] * self.p
-
-                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
-
+                W_wing[i] = self.compute_weight(Sw_samples[i], self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, Nz_samples[i], self.W, self.p)
         elif self.n_active == 1:
-            Sw_samples = self.Sw_dist.rvs(n_samples)
+            Sw_samples = np.sort(self.Sw_dist.rvs(n_samples))
             W_wing = np.zeros(n_samples)
 
             for i in range(n_samples):
-                fac1 = 0.036 * (Sw_samples[i]**0.758) * (self.Fw**0.0035)
-                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-                fac3 = self.q**0.006 * (self.tp**0.04)
-                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-                fac5 = (self.Nz * self.W)**0.49
-                term1 = Sw_samples[i] * self.p
-
-                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+                W_wing[i] = self.compute_weight(Sw_samples[i], self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, self.Nz, self.W, self.p)
 
         return W_wing
     
@@ -258,30 +261,16 @@ class WingWeightReduced:
             W_wing = np.zeros(n_samples)
 
             for i in range(n_samples):
-                fac1 = 0.036 * (Sw[i]**0.758) * (self.Fw**0.0035)
-                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-                fac3 = self.q**0.006 * (self.tp**0.04)
-                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-                fac5 = (Nz[i] * self.W)**0.49
-                term1 = Sw[i] * self.p
-
-                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+                W_wing[i] = self.compute_weight(Sw[i], self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, Nz[i], self.W, self.p)
 
             return Sw, Nz, W_wing
         
         elif self.n_active == 1:
-            Sw = self.Sw_dist.rvs(n_samples)
+            Sw = np.sort(self.Sw_dist.rvs(n_samples))
             W_wing = np.zeros(n_samples)
 
             for i in range(n_samples):
-                fac1 = 0.036 * (Sw[i]**0.758) * (self.Fw**0.0035)
-                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-                fac3 = self.q**0.006 * (self.tp**0.04)
-                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-                fac5 = (self.Nz * self.W)**0.49
-                term1 = Sw[i] * self.p
-
-                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+                W_wing[i] = self.compute_weight(Sw[i], self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, self.Nz, self.W, self.p)
 
             return Sw, W_wing
     
@@ -306,14 +295,7 @@ class WingWeightReduced:
             
             Sw_grid, Nz_grid = np.meshgrid(Sw_vals, Nz_vals, indexing='ij')
 
-            fac1 = 0.036 * (Sw_grid**0.758) * (self.Fw**0.0035)
-            fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-            fac3 = self.q**0.006 * (self.tp**0.04)
-            fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-            fac5 = (Nz_grid * self.W)**0.49
-            term1 = Sw_grid * self.p
-
-            W_wing_grid = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+            W_wing_grid = self.compute_weight(Sw_grid, self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, Nz_grid, self.W, self.p)
 
             # make 1 3d plot and 1 contour plot.
             fig = plt.figure(figsize=(6, 10))
@@ -358,14 +340,7 @@ class WingWeightReduced:
                                 self.Sw_dist.support()[1], 200)
             
 
-            fac1 = 0.036 * (Sw_grid**0.758) * (self.Fw**0.0035)
-            fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
-            fac3 = self.q**0.006 * (self.tp**0.04)
-            fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-            fac5 = (self.Nz * self.W)**0.49
-            term1 = Sw_grid * self.p
-
-            W_wing_grid = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+            W_wing_grid = self.compute_weight(Sw_grid, self.Fw, self.A, self.sweep, self.q, self.tp, self.tc, self.Nz, self.W, self.p)
 
             fig, ax = plt.subplots()
             ax.plot(Sw_grid, W_wing_grid, lw=2, c='b', label='Wing weight function')
@@ -375,5 +350,26 @@ class WingWeightReduced:
             ax.set_ylabel('Wing weight')
             ax.legend()
             plt.show() 
+
+# %%
+# Commenting out, rough checks for seeing if linear model is a good fit
+# when n_active = 1
+# TLDR - its quite good, barring extreme ends. 
+
+ww = WingWeightReduced(n_active=1)
+Sw, W_wing = ww.inputs_and_outputs(4)
+
+# plt.scatter(Sw, W_wing)
+
+# Sw, W_wing = ww.inputs_and_outputs(4)
+
+A = np.vstack([Sw, np.ones(len(Sw))]).T
+m, c = np.linalg.lstsq(A, W_wing)[0]
+print(m, c)
+
+_ = plt.plot(Sw, W_wing, 'o', label='Original data', markersize=4)
+_ = plt.plot(Sw, m*Sw + c, 'r', label='Fitted line')
+_ = plt.legend()
+_ = plt.show()
 
 # %%
