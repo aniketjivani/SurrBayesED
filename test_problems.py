@@ -215,36 +215,4 @@ class WingWeightReduced:
 
         return W_wing
 
-
-
-
-        
-
-
-        # 
-        # g = sns.PairGrid(df, vars=input_vars,
-        #                  diag_sharey=False, 
-        #                  corner=True, 
-        #                  height=2.5,
-        #                  aspect=1)
-
-        # def scatter_color(x, y, **kwargs):
-        #     ax = plt.gca()
-        #     sns.scatterplot(x=x, y=y, 
-        #                 hue=df['W_wing'], 
-        #                 palette='viridis', 
-        #                 s=20, 
-        #                 alpha=0.6, 
-        #                 ax=ax,
-        #                 **kwargs)
-        
-        # g.map(scatter_color)
-
-        # cbar_ax = g.fig.add_axes([.92, .25, .02, .6])  # [left, bottom, width, height]
-        # sm = plt.cm.ScalarMappable(cmap='viridis', 
-        #                            norm=plt.Normalize(vmin=df['W_wing'].min(), 
-        #                             vmax=df['W_wing'].max()))
-        # sm.set_array([])
-        # g.figure.colorbar(sm, cax=cbar_ax, label='Wing Weight')
-
 # %%
