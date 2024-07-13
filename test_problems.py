@@ -357,19 +357,79 @@ class WingWeightReduced:
 # TLDR - its quite good, barring extreme ends. 
 
 ww = WingWeightReduced(n_active=1)
-Sw, W_wing = ww.inputs_and_outputs(4)
+Sw, W_wing = ww.inputs_and_outputs(300)
+
+W_wing_noisy = W_wing + np.random.normal(0, 1.5, len(W_wing))
 
 # plt.scatter(Sw, W_wing)
 
 # Sw, W_wing = ww.inputs_and_outputs(4)
 
 A = np.vstack([Sw, np.ones(len(Sw))]).T
-m, c = np.linalg.lstsq(A, W_wing)[0]
+# m, c = np.linalg.lstsq(A, W_wing)[0]
+m, c = np.linalg.lstsq(A, W_wing_noisy)[0]
 print(m, c)
 
-_ = plt.plot(Sw, W_wing, 'o', label='Original data', markersize=4)
+_ = plt.scatter(Sw, W_wing_noisy, s=6, label='Original data')
 _ = plt.plot(Sw, m*Sw + c, 'r', label='Fitted line')
 _ = plt.legend()
 _ = plt.show()
+
+# %%
+# Multiple linear regression model for WingWeightReduced
+# (with n_active = 2)
+
+from sklearn.model_selection import train_test_split
+
+ww = WingWeightReduced(n_active=2)
+Sw, Nz, W_wing = ww.inputs_and_outputs(10)
+
+W_wing_noisy = W_wing + np.random.normal(0, 1.5, len(W_wing))
+
+# stack Sw and Nz into a single array
+X = np.vstack([Sw, Nz]).T
+
+X_train_orig, X_test_orig, y_train, y_test = train_test_split(X, W_wing_noisy,test_size = 0.6,random_state = 0)
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train_orig)
+X_test = scaler.transform(X_test_orig)
+from sklearn.linear_model import LinearRegression
+# instantiate an object lr
+lr = LinearRegression()
+lr.fit(X_train, y_train)
+y_pred = lr.predict(X_test)
+
+plt.figure(figsize=(10,8))
+plt.scatter(lr.predict(X_train), lr.predict(X_train) - y_train, c = 'b', s = 40, label = 'Train data', alpha = 0.5)
+plt.scatter(lr.predict(X_test), lr.predict(X_test) - y_test, c = 'r', s = 40, label = 'Test data')
+plt.hlines(y = 0, xmin = -100, xmax = 1000, linewidth = 3)
+plt.legend(loc = 'upper right')
+plt.title("Residual errors plot")
+plt.show()
+
+# also plot the features and targets(separate scatters for each variable)
+fig, ax = plt.subplots(2, 1, figsize=(8, 12))
+ax[0].scatter(Sw, W_wing_noisy, s=6, label='All data')
+ax[0].scatter(X_test_orig[:, 0], y_pred, s=6, label='Predicted values')
+ax[0].set_xlabel('Sw')
+ax[0].set_ylabel('W_wing')
+ax[0].legend()
+
+ax[1].scatter(Nz, W_wing_noisy, s=6, label='All data')
+ax[1].scatter(X_test_orig[:, 1], y_pred, s=6, label='Predicted values')
+ax[1].set_xlabel('Nz')
+ax[1].set_ylabel('W_wing')
+ax[1].legend()
+
+# plot predicted and actual values:
+fig, ax = plt.subplots()
+ax.scatter(y_test, y_pred, s=6)
+# diagonal line for perfect fit
+ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+ax.set_xlabel('Actual')
+ax.set_ylabel('Predicted')
+
+
 
 # %%
