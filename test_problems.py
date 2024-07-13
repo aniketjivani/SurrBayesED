@@ -165,54 +165,215 @@ class WingWeight:
 
 class WingWeightReduced:
     """
-    Since only a few parameters are influential in the wing weight function, we can reduce the number of input parameters to 3.
+    Since only a few parameters are influential in the wing weight function, we can reduce the number of input parameters - we will use 2.
     """
-    def __init__(self):
-        self.Sw_dist = stats.uniform(150, 200)
-        self.Nz_dist = stats.uniform(2.5, 6)
-        self.W_dist = stats.uniform(1700, 2500)
+    def __init__(self, n_active=2):
 
-        # initialize other parameters to their nominal values!
-        self.Fw = 252
-        self.A = 7.52
-        self.sweep = 0
-        self.q = 34
-        self.tp = 0.672
-        self.tc = 0.12
-        self.p = 0.064
+        self.n_active = n_active
+        if n_active == 2:
+            self.Sw_dist = stats.uniform(150, 200)
+            self.Nz_dist = stats.uniform(2.5, 6)
+
+            # initialize other parameters to their nominal values!
+            self.Fw = 252
+            self.A = 7.52
+            self.sweep = 0
+            self.q = 34
+            self.tp = 0.672
+            self.tc = 0.12
+            self.W = 2000
+            self.p = 0.064
+        elif n_active == 1:
+            self.Sw_dist = stats.uniform(150, 200)
+
+            # initialize other parameters to their nominal values!
+            self.Fw = 252
+            self.A = 7.52
+            self.sweep = 0
+            self.q = 34
+            self.tp = 0.672
+            self.tc = 0.12
+            self.Nz = 3.8
+            self.W = 2000
+            self.p = 0.064
+
+
+        # self.W_dist = stats.uniform(1700, 2500)
 
     def input_samples(self, n_samples):
         """
         Return samples of input parameters alone.
         """
-
-        Sw = self.Sw_dist.rvs(n_samples)
-        Nz = self.Nz_dist.rvs(n_samples)
-        W_gross = self.W_dist.rvs(n_samples)
-
-        return Sw, Nz, W_gross
-    
+        if self.n_active == 2:
+            Sw = self.Sw_dist.rvs(n_samples)
+            Nz = self.Nz_dist.rvs(n_samples)
+            return Sw, Nz
+        elif self.n_active == 1:
+            Sw = self.Sw_dist.rvs(n_samples)
+            return Sw
+  
     def sample(self, n_samples):
         """
         Compute wing weight as a function of all 10 variables (3 varying, 7 fixed)
         """
+        if self.n_active == 2:
+            Sw_samples = self.Sw_dist.rvs(n_samples)
+            Nz_samples = self.Nz_dist.rvs(n_samples)
+            W_wing = np.zeros(n_samples)
 
-        Sw_samples = self.Sw_dist.rvs(n_samples)
-        Nz_samples = self.Nz_dist.rvs(n_samples)
-        W_samples = self.W_dist.rvs(n_samples)
+            for i in range(n_samples):
+                fac1 = 0.036 * (Sw_samples[i]**0.758) * (self.Fw**0.0035)
+                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
+                fac3 = self.q**0.006 * (self.tp**0.04)
+                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
+                fac5 = (Nz_samples[i] * self.W)**0.49
+                term1 = Sw_samples[i] * self.p
 
-        W_wing = np.zeros(n_samples)
+                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
 
-        for i in range(n_samples):
-            fac1 = 0.036 * (Sw_samples[i]**0.758) * (self.Fw**0.0035)
+        elif self.n_active == 1:
+            Sw_samples = self.Sw_dist.rvs(n_samples)
+            W_wing = np.zeros(n_samples)
+
+            for i in range(n_samples):
+                fac1 = 0.036 * (Sw_samples[i]**0.758) * (self.Fw**0.0035)
+                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
+                fac3 = self.q**0.006 * (self.tp**0.04)
+                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
+                fac5 = (self.Nz * self.W)**0.49
+                term1 = Sw_samples[i] * self.p
+
+                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+
+        return W_wing
+    
+
+    def inputs_and_outputs(self, n_samples):
+        """
+        Return samples of input parameters and corresponding output.
+        """
+        if self.n_active == 2:
+            Sw = self.Sw_dist.rvs(n_samples)
+            Nz = self.Nz_dist.rvs(n_samples)
+            W_wing = np.zeros(n_samples)
+
+            for i in range(n_samples):
+                fac1 = 0.036 * (Sw[i]**0.758) * (self.Fw**0.0035)
+                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
+                fac3 = self.q**0.006 * (self.tp**0.04)
+                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
+                fac5 = (Nz[i] * self.W)**0.49
+                term1 = Sw[i] * self.p
+
+                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+
+            return Sw, Nz, W_wing
+        
+        elif self.n_active == 1:
+            Sw = self.Sw_dist.rvs(n_samples)
+            W_wing = np.zeros(n_samples)
+
+            for i in range(n_samples):
+                fac1 = 0.036 * (Sw[i]**0.758) * (self.Fw**0.0035)
+                fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
+                fac3 = self.q**0.006 * (self.tp**0.04)
+                fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
+                fac5 = (self.Nz * self.W)**0.49
+                term1 = Sw[i] * self.p
+
+                W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+
+            return Sw, W_wing
+    
+
+    def plotOnGrid(self, n_samples):
+        """
+        Create grid of 50 samples for each of the 3 parameters.
+        Make a contour plot of wing weight on this grid.
+        Overlay random samples on this plot.
+        """
+
+
+        if self.n_active == 2:
+            Sw, Nz, W_wing_samples = self.inputs_and_outputs(n_samples)
+
+            Sw_vals = np.linspace(self.Sw_dist.support()[0],
+                                self.Sw_dist.support()[1], 50)
+            Nz_vals = np.linspace(self.Nz_dist.support()[0],
+                                self.Nz_dist.support()[1], 50)
+            # W_vals = np.linspace(self.W_dist.support()[0],
+                                #  self.W_dist.support()[1], 50)
+            
+            Sw_grid, Nz_grid = np.meshgrid(Sw_vals, Nz_vals, indexing='ij')
+
+            fac1 = 0.036 * (Sw_grid**0.758) * (self.Fw**0.0035)
             fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
             fac3 = self.q**0.006 * (self.tp**0.04)
             fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
-            fac5 = (Nz_samples[i] * W_samples[i])**0.49
-            term1 = Sw_samples[i] * self.p
+            fac5 = (Nz_grid * self.W)**0.49
+            term1 = Sw_grid * self.p
 
-            W_wing[i] = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+            W_wing_grid = fac1 * fac2 * fac3 * fac4 * fac5 + term1
 
-        return W_wing
+            # make 1 3d plot and 1 contour plot.
+            fig = plt.figure(figsize=(6, 10))
+            ax1 = fig.add_subplot(211, projection='3d')
+            # set projection for ax[0]
+            surf = ax1.plot_surface(Sw_grid, 
+                            Nz_grid,
+                            W_wing_grid, 
+                            cmap='viridis',
+                            vmin=np.min(W_wing_grid),
+                            vmax=np.max(W_wing_grid),
+                            alpha=0.5)
+
+            # overlay 3d scatter plot of samples.
+            ax1.scatter(Sw, Nz, W_wing_samples, c='r', s=50)
+            ax1.set_xlabel('Sw')
+            ax1.set_ylabel('Nz')
+            ax1.set_zlabel('W_wing')
+
+            # Colorbar
+            cbar = plt.colorbar(surf)
+
+            ax2 = fig.add_subplot(212)
+            cf = ax2.contourf(Sw_grid, Nz_grid, W_wing_grid, 
+                            cmap='viridis',
+                            vmin=np.min(W_wing_grid),
+                            vmax=np.max(W_wing_grid))
+            
+            ax2.set_xlabel('Sw')
+            ax2.set_ylabel('Nz')
+
+            cbar2 = plt.colorbar(cf)
+
+            fig.tight_layout()
+
+            plt.show()
+        elif self.n_active == 1:
+            # we can only do scatter plots!
+            Sw_samples, W_wing_samples = self.inputs_and_outputs(n_samples)
+
+            Sw_grid = np.linspace(self.Sw_dist.support()[0],
+                                self.Sw_dist.support()[1], 200)
+            
+
+            fac1 = 0.036 * (Sw_grid**0.758) * (self.Fw**0.0035)
+            fac2 = (self.A / (np.cos(self.sweep * np.pi / 180)) ** 2) ** 0.6
+            fac3 = self.q**0.006 * (self.tp**0.04)
+            fac4 = (100 * self.tc / np.cos(self.sweep * np.pi / 180))**(-0.3)
+            fac5 = (self.Nz * self.W)**0.49
+            term1 = Sw_grid * self.p
+
+            W_wing_grid = fac1 * fac2 * fac3 * fac4 * fac5 + term1
+
+            fig, ax = plt.subplots()
+            ax.plot(Sw_grid, W_wing_grid, lw=2, c='b', label='Wing weight function')
+            ax.scatter(Sw_samples, W_wing_samples, c='r', s=50, label='Samples')
+
+            ax.set_xlabel('Sw')
+            ax.set_ylabel('Wing weight')
+            ax.legend()
+            plt.show() 
 
 # %%
