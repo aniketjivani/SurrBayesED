@@ -49,7 +49,7 @@ def model_2(theta, d):
     return theta ** 1.5 * d ** 2 + theta * np.exp(-((0.2 - d) / 0.3)**2)
 
 
-def model_3(theta, d):
+def model_3(theta, d, use_only_d=False):
     """
     Nonliner model.
 
@@ -65,7 +65,10 @@ def model_3(theta, d):
     numpy.ndarray of size (n_sample, n_obs)
         The output of the linear model.
     """
-    return theta * d + 2 * np.sin(theta * d) + 3 * np.exp(-theta * (d - 5)**2) + 5 * np.exp(-0.5 * (d - 15)**2)
+    if use_only_d:
+        return 0.5 * d + 2 * np.sin(0.5 * d) + 3 * np.exp(-0.1 * (d - 5)**2) + 5 * np.exp(-0.5 * (d - 15)**2)
+    else:
+        return theta * d + 2 * np.sin(theta * d) + 3 * np.exp(-theta * (d - 5)**2) + 5 * np.exp(-theta * (d - 15)**2)
 
 
 n_param = 1 # Number of parameters.
