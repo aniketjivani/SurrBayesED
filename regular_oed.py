@@ -13,7 +13,7 @@ from oed_wanggang import *
 # nonlinear test case
 def model_1(theta, d):
     """
-    Nonliner model.
+    Nonlinear model.
 
     Parameters
     ----------
@@ -32,7 +32,7 @@ def model_1(theta, d):
 
 def model_2(theta, d):
     """
-    Nonliner model.
+    Nonlinear model.
 
     Parameters
     ----------
@@ -51,7 +51,7 @@ def model_2(theta, d):
 
 def model_3(theta, d, use_only_d=False):
     """
-    Nonliner model.
+    Nonlinear model.
 
     Parameters
     ----------
@@ -70,6 +70,24 @@ def model_3(theta, d, use_only_d=False):
     else:
         return theta * d + 2 * np.sin(theta * d) + 3 * np.exp(-theta * (d - 5)**2) + 5 * np.exp(-theta * (d - 15)**2)
 
+
+def model_4(theta, d):
+    """
+    Nonlinear model.
+
+    Parameters
+    ----------
+    theta : np.ndarray of size (n_sample or 1, n_param)
+        The value of unknown linear model parameters.
+    d : np.ndarray of size (n_sample or 1, n_design)
+        The design variable.
+
+    Returns
+    -------
+    numpy.ndarray of size (n_sample, n_obs)
+        The output of the linear model.
+    """
+    return theta * d + 2 * np.sin(theta * d) + 3 * np.exp(-theta * (d - 5)**2) * np.sin(2 * d) + 5 * np.exp(-theta * (d - 15)**2)
 
 n_param = 1 # Number of parameters.
 n_design = 1 # Number of design variables.
@@ -119,6 +137,18 @@ oed_2 = OED(model_fun=model_3,
             prior_logpdf=prior_logpdf,
             reward_fun=None,
             random_state=random_state)
+
+
+oed_4 = OED(model_fun=model_4,
+            n_param=n_param,
+            n_design=n_design,
+            n_obs=n_obs,
+            prior_rvs=prior_rvs,
+            design_bounds=design_bounds,
+            noise_info=noise_info,
+            prior_logpdf=prior_logpdf,
+            reward_fun=None,
+            random_state=random_state)
 # %% Plot of utility on grid:
 ds = np.linspace(design_bounds[0][0], design_bounds[0][1], 21)
 Us = []
@@ -156,4 +186,52 @@ plt.yticks(fontsize=15)
 plt.grid(ls='--')
 plt.show()
 
-# %% we will use model 3 as our test example for surrogate OED .
+
+# %%
+
+ds4 = np.linspace(-4, 4, 51)
+Us4 = []
+thetas4 = prior_rvs(1000)
+noises4 = np.random.normal(size=(1000, n_obs))
+
+for d in ds4:
+    Us4.append(oed_4.exp_utility(d, thetas4, noises4))
+
+plt.figure(figsize=(6, 4))
+plt.plot(ds4, Us4)
+plt.xlabel('d', fontsize=20)
+plt.ylabel('U(d)', fontsize=20)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.grid(ls='--')
+plt.show()
+
+# %% Plotting model outputs
+
+yy_reg = np.zeros((1000, 51))
+for i, d in enumerate(ds2):
+    yy_reg[:, i] = model_3(thetas2, d).flatten()
+
+yy_reg_mean = np.mean(yy_reg, axis=0)
+yy_reg_std = np.std(yy_reg, axis=0)
+
+plt.plot(ds2, yy_reg_mean)
+plt.plot(ds2, yy_reg_mean - yy_reg_std)
+plt.plot(ds2, yy_reg_mean + yy_reg_std)
+
+
+# %% Plotting model outputs
+
+yy_reg = np.zeros((1000, 51))
+for i, d in enumerate(ds4):
+    yy_reg[:, i] = model_4(thetas4, d).flatten()
+
+yy_reg_mean = np.mean(yy_reg, axis=0)
+yy_reg_std = np.std(yy_reg, axis=0)
+
+plt.plot(ds4, yy_reg_mean)
+plt.plot(ds4, yy_reg_mean - yy_reg_std)
+plt.plot(ds4, yy_reg_mean + yy_reg_std)
+
+# %% we will use model 3 OR model 4 as our test example for surrogate OED .
+
