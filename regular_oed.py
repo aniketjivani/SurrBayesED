@@ -179,8 +179,8 @@ for d in ds2:
 
 plt.figure(figsize=(6, 4))
 plt.plot(ds2, Us2)
-plt.xlabel('d', fontsize=20)
-plt.ylabel('U(d)', fontsize=20)
+plt.xlabel(r'$d$', fontsize=20)
+plt.ylabel(r'$U(d)$', fontsize=20)
 plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
 plt.grid(ls='--')
@@ -199,8 +199,8 @@ for d in ds4:
 
 plt.figure(figsize=(6, 4))
 plt.plot(ds4, Us4)
-plt.xlabel('d', fontsize=20)
-plt.ylabel('U(d)', fontsize=20)
+plt.xlabel(r'$d$', fontsize=20)
+plt.ylabel(r'$U(d)$', fontsize=20)
 plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
 plt.grid(ls='--')
@@ -215,9 +215,21 @@ for i, d in enumerate(ds2):
 yy_reg_mean = np.mean(yy_reg, axis=0)
 yy_reg_std = np.std(yy_reg, axis=0)
 
-plt.plot(ds2, yy_reg_mean)
-plt.plot(ds2, yy_reg_mean - yy_reg_std)
-plt.plot(ds2, yy_reg_mean + yy_reg_std)
+# plt.plot(ds2, yy_reg_mean)
+# plt.plot(ds2, yy_reg_mean - yy_reg_std)
+# plt.plot(ds2, yy_reg_mean + yy_reg_std)
+
+# make filled plot
+plt.plot(ds2, yy_reg_mean, label='Mean')
+plt.fill_between(ds2, yy_reg_mean - 2 * yy_reg_std, yy_reg_mean + 2 * yy_reg_std, alpha=0.3, label='')
+plt.xlabel(r'$d$', fontsize=20)
+plt.ylabel(r'$G(\theta, d)$', fontsize=20)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.grid(ls='--')
+plt.show()
+
+
 
 
 # %% Plotting model outputs
@@ -229,9 +241,20 @@ for i, d in enumerate(ds4):
 yy_reg_mean = np.mean(yy_reg, axis=0)
 yy_reg_std = np.std(yy_reg, axis=0)
 
-plt.plot(ds4, yy_reg_mean)
-plt.plot(ds4, yy_reg_mean - yy_reg_std)
-plt.plot(ds4, yy_reg_mean + yy_reg_std)
+# plt.plot(ds4, yy_reg_mean)
+# plt.plot(ds4, yy_reg_mean - yy_reg_std)
+# plt.plot(ds4, yy_reg_mean + yy_reg_std)
+
+# make filled plot
+plt.plot(ds4, yy_reg_mean, label='Mean')
+plt.fill_between(ds4, yy_reg_mean - 2 * yy_reg_std, yy_reg_mean + 2 * yy_reg_std, alpha=0.3, label='')
+plt.xlabel(r'$d$', fontsize=20)
+plt.ylabel(r'$G(\theta, d)$', fontsize=20)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.grid(ls='--')
+plt.show()
+
 
 # %% we will use model 3 OR model 4 as our test example for surrogate OED .
 
