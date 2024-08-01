@@ -344,7 +344,6 @@ def posterior_predictive(Phi_test, m_N, S_N, beta):
 
 
 #%% Generate train inputs (each N x 2 arrays, one column for theta and one for d)
-# test inputs will be a grid over the domain of theta and d!
 np.random.seed(2025)
 
 Ntrain = 50
@@ -355,10 +354,13 @@ alpha = 2.0 # prior precision (prior for weights is N(0, alpha^(-1)I))
 # generate random theta and d simultaneously
 X_train = np.random.uniform([-4.0, 0], [4.0, 1], size=(Ntrain, 2)) # note that first column is d and not theta!
 
+
+
 # generate observations with noise.
 Y_train = np.zeros(Ntrain)
 for i in range(Ntrain):
     Y_train[i] = model_3(X_train[i, 1], X_train[i, 0]) + sigma_eta*np.random.randn()
+
 
 
 plt.figure(figsize=(8, 6))
@@ -400,6 +402,67 @@ plt.xticks(fontsize=15)
 plt.yticks(fontsize=15)
 plt.colorbar(contour_plt)
 plt.title("Linearized")
+
+# Least squares check: How good of a fit can we get?
+Ntest = 100
+X_test = np.random.uniform([-4.0, 0], [4.0, 1], size=(Ntest, 2))
+Y_test = np.zeros(Ntest)
+for i in range(Ntest):
+    Y_test[i] = model_3(X_test[i, 1], X_test[i, 0]) + sigma_eta*np.random.randn()
+
+theta_train = X_train[:, 1]
+d_train = X_train[:, 0]
+
+theta_test = X_test[:, 1]
+d_test = X_test[:, 0]
+
+A = np.vstack([np.ones(Ntrain), theta_train, d_train, theta_train**2, d_train**2, theta_train*d_train, theta_train**2*d_train, theta_train*d_train**2, theta_train**2*d_train**2, theta_train**3*d_train**3]).T
+
+A_test = np.vstack([np.ones(Ntest), theta_test, d_test, theta_test**2, d_test**2, theta_test*d_test, theta_test**2*d_test, theta_test*d_test**2, theta_test**2*d_test**2, theta_test**3*d_test**3]).T
+
+beta_fit = np.linalg.lstsq(A, Y_train)[0:1][0]
+Y_fit = np.dot(A, beta_fit)
+
+Y_pred = np.dot(A_test, beta_fit)
+
+# plot scatter of training data and fit
+plt.figure(figsize=(8, 6))
+plt.scatter(Y_train, Y_fit, c='r', marker='x', label='Training Data')
+plt.scatter(Y_test, Y_pred, c='b', marker='o', label='Test Data')
+# plot diagonal line
+plt.plot([min(Y_train), max(Y_train)], [min(Y_train), max(Y_train)], 'k--', label='')
+plt.xlabel('True Y', fontsize=20)
+plt.ylabel('Fitted Y', fontsize=20)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.legend()
+
+# plot pred over domain:
+# y_pred_domain = np.zeros((len(thetas_reg) * len(ds_reg)))
+
+# meshgrid and flatten:
+THETAS, DS = np.meshgrid(thetas_reg, ds_reg)
+theta_flat = THETAS.flatten()
+d_flat = DS.flatten()
+
+A_domain = np.vstack([np.ones(len(theta_flat)), theta_flat, d_flat, theta_flat**2, d_flat**2, theta_flat*d_flat, theta_flat**2*d_flat, theta_flat*d_flat**2, theta_flat**2*d_flat**2, theta_flat**3*d_flat**3]).T
+
+y_pred_domain_flat = np.dot(A_domain, beta_fit)
+
+# reshape and plot:
+y_pred_domain = y_pred_domain_flat.reshape(len(ds_reg), len(thetas_reg))
+plt.figure(figsize=(8, 6))
+contour_plt = plt.contourf(thetas_reg, ds_reg, y_pred_domain, levels=20)
+# overlay line with training scatter:
+plt.scatter(X_train[:, 1], X_train[:, 0], c='r', marker='x', s=50)
+plt.xlabel(r'$\theta$', fontsize=20)
+plt.ylabel(r'$d$', fontsize=20)
+plt.xticks(fontsize=15)
+plt.yticks(fontsize=15)
+plt.colorbar(contour_plt)
+plt.title("Least Squares")
+
+
 
 # %% Plots of posterior density and samples in the predictive
 # this is for illustration purposes, we will repeat this plot when we acquire new samples through OED. For now we will just show the result of using subset of the training data in each stage.
