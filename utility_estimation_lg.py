@@ -2,6 +2,17 @@ import numpy as np
 import torch
 import botorch
 import emcee
+from sklearn.utils.extmath import fast_logdet
+
+def norm_logpdf(x, loc=0, scale=1):
+    logpdf = (-np.log(np.sqrt(2 * np.pi) * scale) 
+              - (x - loc) ** 2 / 2 / scale ** 2)
+    return logpdf.sum(axis=-1)
+
+# pdf of independent normal distribution.
+def norm_pdf(x, loc=0, scale=1):
+    return np.exp(norm_logpdf(x, loc, scale))
+
 
 class OEDLG(object):
     """
@@ -53,24 +64,37 @@ class OEDLG(object):
         self.G: response variable
         self.beta: inverse variance / precision of Gaussian distributed noise.
         """
-        pass
+        
 
 
-    def logprior(self):
+    def logprior(self, lambdas):
         """
         self.alpha: prior inverse variance / precision of weights lambda.
-        i.e. 
+        lambdas: size n_post_samples x p
         """
-        pass
+        return norm_logpdf(lambdas, loc=0, scale=1/np.sqrt(self.alpha))
+        
 
-    def post_logpdf(self, include_prior=True):
+    def post_logpdf_mcmc(self, include_prior=True):
         """
         Logprobability of unnormalized posterior after observing data y.
         """
         pass
 
 
-    def post_rvs(self, n_post_samples):
+    def post_rvs_mcmc(self, n_post_samples):
+        """
+        Generate n_post_samples from the posterior distribution.
+        """
+        pass
+
+    def post_logpdf_closed_form(self, include_prior=True):
+        """
+        Logprobability for (Gaussian) posterior after observing data 
+        """
+        pass
+
+    def post_rvs_closed_form(self, n_post_samples):
         """
         Generate n_post_samples from the posterior distribution.
         """
@@ -80,9 +104,41 @@ class OEDLG(object):
         pass
 
 
-    def utility_analytical():
-        pass
+    def utility_analytical(self):
+        """
+        Calculate Fisher-information matrix and maximize EIG i.e. getting a D - optimal design.
+        F = PhiMat^T * \Tau_G | \lambda^-1 * PhiMat
+        If PhiMat is n x p, then F is p x p.
+        \Tau_G | \lambda  is cov of Gaussian RV noise. If noise distribution has precision \beta, then \Tau_G | \lambda = (1/\beta)I_n and \Tau_G | \lambda^-1 = \beta I_n.
+        EIG = (1/2)(log det \Tau_G (\theta, d) - log det \Tau_G|\lambda (\theta, d))
 
+        where \Tau_G(\theta, d) = marginal prior predictive covariance = PhiMat * \Tau_\lambda * PhiMat^T + \Tau_G | \lambda 
+        and \Tau_\lambda = (1 / \alpha)I_p
+        """
+        
+        n, p = self.PhiMat.shape
+        Tau_G_cond_lambda = (1 / self.beta) * np.eye(n)
+        Tau_G_cond_lambda_inv = self.beta * np.eye(n)
+        Tau_lambda = (1 / self.alpha) * np.eye(p)
+        Tau_G = self.PhiMat @ Tau_lambda @ self.PhiMat.T + Tau_G_cond_lambda
+
+        eig_analytic = (1/2) * (self.log_det_mat(Tau_G) - self.log_det_mat(Tau_G_cond_lambda))
+
+        return eig_analytic
+        
+
+    @staticmethod
+    def log_det_mat(mat):
+        """
+        Calculate the log determinant of a matrix.
+        """
+        return fast_logdet(mat)
+    
+    def log_det_mat_numpy(mat):
+        """
+        Calculate the log determinant of a matrix.
+        """
+        return np.linalg.slogdet(mat)[1]
 
     def optimize_acqf_and_get_observation(self, acq_func):
         """
