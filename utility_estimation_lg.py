@@ -7,6 +7,7 @@ from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.optim import optimize_acqf
 from botorch.acquisition.analytic import ExpectedImprovement, LogExpectedImprovement
+from botorch.acquisition.monte_carlo import qExpectedImprovement
 import emcee
 from sklearn.utils.extmath import fast_logdet
 
@@ -26,7 +27,14 @@ class OEDLG(object):
     A Bayesian optimal experimental design class. This class aims to provide numerical and analytical calculations of utility as well as batch design for linear Gaussian case. Optimization for U_KL is performed using Bayesian Optimization via BoTorch.
     """
 
-    def __init__(self, PhiMat, G, beta, alpha, random_state=None, q_acq = 1, n_param=10):
+    def __init__(self, PhiMat, G, beta, alpha, 
+                 random_state=None, 
+                 q_acq = 1, 
+                 n_param=10, 
+                 n_design=2, 
+                #  prior_rvs=None, 
+                #  prior_logpdf=None,
+                ):
         """
         PhiMat: design matrix
         G: response variable from high-fidelity model
@@ -39,6 +47,9 @@ class OEDLG(object):
         self.G = G
         self.beta = beta
         self.alpha = alpha
+        
+        # self.prior_rvs = prior_rvs
+        # self.prior_logpdf = prior_logpdf
 
         NoneType = type(None)
         assert isinstance(random_state, (int, NoneType)), (
@@ -46,6 +57,7 @@ class OEDLG(object):
         np.random.seed(random_state)
         self.random_state = random_state
         self.n_param = n_param
+        self.n_design = n_design
 
     def info(self):
         """
@@ -61,7 +73,7 @@ class OEDLG(object):
         oed_obj.ppinfo()
         """
         info_dict = self.info()
-        print("Person Information:")
+        print("OED object Information:")
         for key, value in info_dict.items():
             print(f"  {key}: {value}")
 
@@ -109,20 +121,20 @@ class OEDLG(object):
         return log_lik
         
 
-    def logprior(self, lambdas):
-        """
-        self.alpha: prior inverse variance / precision of weights lambda.
-        lambdas: size n_post_samples x p
-        """
-        return norm_logpdf(lambdas, loc=0, scale=1/np.sqrt(self.alpha))
+    # def logprior(self, lambdas):
+    #     """
+    #     self.alpha: prior inverse variance / precision of weights lambda.
+    #     lambdas: size n_post_samples x p
+    #     """
+    #     return norm_logpdf(lambdas, loc=0, scale=1/np.sqrt(self.alpha))
         
-    def prior_rvs(self, n_prior_samples):
-        """
-        Generate n_prior_samples from the prior distribution.
-        """
-        p = self.n_param
-        prior_samples = np.random.normal(0, 1/np.sqrt(self.alpha), size=(n_prior_samples, p))
-        return prior_samples
+    # def sample_prior(self, n_prior_samples):
+    #     """
+    #     Generate n_prior_samples from the prior distribution.
+    #     """
+    #     p = self.n_param
+    #     prior_samples = np.random.normal(0, 1/np.sqrt(self.alpha), size=(n_prior_samples, p))
+    #     return prior_samples
 
     def post_logpdf_mcmc(self, lambdas, PhiMat, G, include_prior=True):
         """
@@ -147,6 +159,7 @@ class OEDLG(object):
         logpost += loglikelihoods
 
         if include_prior:
+            # logprior = self.prior_logpdf(lambdas)
             logprior = self.logprior(lambdas)
             logpost += logprior
 
@@ -267,8 +280,10 @@ class OEDLG(object):
     def utility_analytical(self, PhiMat=None):
         """
         Calculate Fisher-information matrix and maximize EIG i.e. getting a D - optimal design.
-        F = PhiMat^T * \Tau_G | \lambda^-1 * PhiMat
-        If PhiMat is n x p, then F is p x p.
+        F = PhiMat (\theta, d) ^T * \Tau_G | \lambda^-1 * PhiMat (\theta, d)
+
+        When we use ith row of PhiMat(\theta, d), we take log_det over [1x1] submatrix, by passing all rows, we can aggregate results into a vector specifying eig at each sample.
+
         \Tau_G | \lambda  is cov of Gaussian RV noise. If noise distribution has precision \beta, then \Tau_G | \lambda = (1/\beta)I_n and \Tau_G | \lambda^-1 = \beta I_n.
         EIG = (1/2)(log det \Tau_G (\theta, d) - log det \Tau_G|\lambda (\theta, d))
 
@@ -278,12 +293,19 @@ class OEDLG(object):
         if PhiMat is None:
             PhiMat = self.PhiMat
         n, p = PhiMat.shape
-        Tau_G_cond_lambda = (1 / self.beta) * np.eye(n)
-        Tau_G_cond_lambda_inv = self.beta * np.eye(n)
-        Tau_lambda = (1 / self.alpha) * np.eye(p)
-        Tau_G = self.PhiMat @ Tau_lambda @ self.PhiMat.T + Tau_G_cond_lambda
 
-        eig_analytic = (1/2) * (self.log_det_mat(Tau_G) - self.log_det_mat(Tau_G_cond_lambda))
+        eig_analytic = np.zeros(n)
+        for i in range(n):
+            PhiI = PhiMat[i, :].reshape(1, -1)
+
+            # Tau_G_cond_lambda = (1 / self.beta) * np.eye(n)
+            # Tau_G_cond_lambda_inv = self.beta * np.eye(n)
+
+            Tau_G_cond_lambda = (1 / self.beta) * np.eye(1)
+            Tau_lambda = (1 / self.alpha) * np.eye(p)
+            Tau_G = PhiI @ Tau_lambda @ PhiI.T + Tau_G_cond_lambda
+
+            eig_analytic[i] = (1/2) * (self.log_det_mat_numpy(Tau_G) - self.log_det_mat_numpy(Tau_G_cond_lambda))
 
         return eig_analytic
         
