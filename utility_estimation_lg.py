@@ -76,7 +76,7 @@ class OEDLG(object):
 
         assert N == len(G), "Number of rows in PhiMat should be equal to the length of G."
 
-        lambda_est = np.linalg.solve(beta * (beta * (PhiMat.T @ PhiMat) + alpha * np.eye(p)), PhiMat.T @ G)
+        lambda_est = np.linalg.solve((beta * (PhiMat.T @ PhiMat) + alpha * np.eye(p)), beta * (PhiMat.T @ G))
 
         return lambda_est
 
