@@ -4,6 +4,7 @@ import botorch
 import emcee
 from sklearn.utils.extmath import fast_logdet
 
+# logpdf of independent normal distribution.
 def norm_logpdf(x, loc=0, scale=1):
     logpdf = (-np.log(np.sqrt(2 * np.pi) * scale) 
               - (x - loc) ** 2 / 2 / scale ** 2)
@@ -58,12 +59,42 @@ class OEDLG(object):
             print(f"  {key}: {value}")
 
 
-    def loglikelihood(self):
+    def ridge_regression(self, PhiMat, G):
+        """
+        Perform ridge regression to estimate the weights lambda.
+
+        lambda = \beta (\beta PhiMat^T PhiMat + \alpha I)^{-1} PhiMat^T G
+        """
+        beta = self.beta
+        alpha = self.alpha
+
+        # allow supplying PhiMat and G as arguments.
+        # PhiMat = self.PhiMat
+        # G = self.G
+
+        N, p = PhiMat.shape
+
+        assert N == len(G), "Number of rows in PhiMat should be equal to the length of G."
+
+        lambda_est = np.linalg.solve(beta * (beta * (PhiMat.T @ PhiMat) + alpha * np.eye(p)), PhiMat.T @ G)
+
+        return lambda_est
+
+    def loglikelihood(self, PhiMat, G):
         """
         self.PhiMat: design matrix
         self.G: response variable
         self.beta: inverse variance / precision of Gaussian distributed noise.
         """
+        beta = self.beta
+        alpha = self.alpha
+        lambda_est = self.ridge_regression(PhiMat, G)
+
+        N, p = PhiMat.shape
+
+        log_lik = (N/2) * np.log(beta) - (N/2) * np.log(2 * np.pi) - (beta/2) * np.linalg.norm(G.flatten() - (PhiMat @ lambda_est).flatten())**2
+
+        return log_lik
         
 
 
@@ -92,7 +123,7 @@ class OEDLG(object):
         """
         Logprobability for (Gaussian) posterior after observing data 
         """
-        pass
+        
 
     def post_rvs_closed_form(self, n_post_samples):
         """
@@ -100,11 +131,58 @@ class OEDLG(object):
         """
         pass
 
-    def utility_dnmc():
-        pass
+    def posterior_predictive(self, PhiMat, G, n_post_samples):
+        """
+        Generate n_post_samples from the posterior predictive distribution.
+        """
+        beta = self.beta
+        alpha = self.alpha
 
+        lambda_est = self.ridge_regression(PhiMat, G)
 
-    def utility_analytical(self):
+        N, p = PhiMat.shape
+
+        S_N_inv = alpha * np.eye(p) + beta * PhiMat.T @ PhiMat
+        S_N = np.linalg.inv(S_N_inv)
+
+        m_N = beta * np.dot(S_N, np.dot(PhiMat.T, G))
+
+        post_samples = np.random.multivariate_normal(m_N, S_N, size=n_post_samples)
+        
+
+    def utility_dnmc(self, PhiMat, G, PhiMatTrain, GTrain, nIn=1e5, nOut=1e5):
+        """
+        NMC estimator.
+        U(\theta, d) = (1/N_out)sum_i [log p(G_i | \theta, \lambda, d) - (1/N_in)sum_j log p(G_i | \theta, d, \lambda_i,j)]
+
+        we will use the same number of nIn and nOut samples.
+        """
+        N, p = PhiMat.shape
+
+        beta = self.beta
+        alpha = self.alpha
+
+        # This distinction of having a separate PhiMatTrain and GTrain is necessary when using the definition for the optimization call because we can only use the training data to estimate the utility surface in the computation.
+        lambda_est = self.ridge_regression(PhiMatTrain, GTrain)
+
+        # generate nOut values of likelihood
+        loglikelis = norm_logpdf(G, loc=PhiMat @ lambda_est, scale=1/np.sqrt(beta))
+
+        # sanity check
+        loglikelis = (N/2) * np.log(beta) - (N/2) * np.log(2 * np.pi) - (beta/2) * np.linalg.norm(G.flatten() - (PhiMat @ lambda_est).flatten())**2
+
+        evids = np.zeros(nIn)
+
+        for i in range(nIn):
+            inner_likelis = np.exp(norm_logpdf(G, loc=PhiMat @ lambda_est, scale=1/np.sqrt(beta)))
+
+            evids[i] = np.mean(inner_likelis)
+
+        utility_dnmc = (loglikelis - np.log(evids)).mean()
+
+        return utility_dnmc
+
+    def utility_analytical(self, PhiMat=None):
         """
         Calculate Fisher-information matrix and maximize EIG i.e. getting a D - optimal design.
         F = PhiMat^T * \Tau_G | \lambda^-1 * PhiMat
@@ -115,8 +193,9 @@ class OEDLG(object):
         where \Tau_G(\theta, d) = marginal prior predictive covariance = PhiMat * \Tau_\lambda * PhiMat^T + \Tau_G | \lambda 
         and \Tau_\lambda = (1 / \alpha)I_p
         """
-        
-        n, p = self.PhiMat.shape
+        if PhiMat is None:
+            PhiMat = self.PhiMat
+        n, p = PhiMat.shape
         Tau_G_cond_lambda = (1 / self.beta) * np.eye(n)
         Tau_G_cond_lambda_inv = self.beta * np.eye(n)
         Tau_lambda = (1 / self.alpha) * np.eye(p)
@@ -127,13 +206,14 @@ class OEDLG(object):
         return eig_analytic
         
 
-    @staticmethod
-    def log_det_mat(mat):
-        """
-        Calculate the log determinant of a matrix.
-        """
-        return fast_logdet(mat)
+    # @staticmethod
+    # def log_det_mat(mat):
+    #     """
+    #     Calculate the log determinant of a matrix.
+    #     """
+    #     return fast_logdet(mat)
     
+    @staticmethod
     def log_det_mat_numpy(mat):
         """
         Calculate the log determinant of a matrix.
