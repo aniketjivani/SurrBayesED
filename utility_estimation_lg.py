@@ -240,7 +240,7 @@ class OEDLG(object):
 
         return predictive_mean, predictive_var        
 
-    def utility_dnmc(self, lambdas, PhiMat, noises, nIn=5e2, useTrain=False):
+    def utility_dnmc(self, lambdas, PhiMat, noises, nIn=5e2):
         """
         NMC estimator.
         U(\theta, d) = (1/N_out)sum_i [log p(G_i | \theta, \lambda, d) - (1/N_in)sum_j log p(G_i | \theta, d, \lambda_i,j)]
@@ -252,31 +252,12 @@ class OEDLG(object):
         beta = self.beta
         alpha = self.alpha
 
-        # lambda_est = self.ridge_regression(PhiMatTrain, GTrain)
-
-        # if useTrain:
-        #     lstsq_estimate = (PhiMatTrain @ lambda_est).reshape(-1, 1)
-        #     yvals = GTrain.reshape(-1, 1)
-        # else:
-        #     lstsq_estimate = (PhiMat @ lambda_est).reshape(-1, 1)
-        #     yvals = G.reshape(-1, 1)
-
-        # # generate nOut values of likelihood
-
-
-        # # nOut = int(nOut)
-        # # nIn = int(nIn)
-
-        # nOut = min(int(nOut), yvals.shape[0])
-        # nIn = int(nIn) if nIn <= yvals.shape[0] else yvals.shape[0]
-
         nOut = lambdas.shape[0]
         nIn = min(int(nIn), nOut) 
 
         evids = np.zeros(nOut)
 
         nD = PhiMat.shape[0]
-        # lstsq_estimate = np.zeros((nOut, 1))
 
         utilities_dnmc = np.zeros(nD)
         if noises is None:
@@ -297,6 +278,53 @@ class OEDLG(object):
                     inner_likelis = np.exp(norm_logpdf(yvals[i:(i+1)], loc=(PhiMat[[dIdx], :] @ lambdas[[j], :].T)[0][0], scale=1/np.sqrt(beta)))[0]
                     evids[i] += inner_likelis
                 evids[i] = evids[i] / nIn
+
+            utility_dnmc = (loglikelis_out - np.log(evids)).mean()
+            utilities_dnmc[dIdx] = utility_dnmc
+
+        return utilities_dnmc
+    
+
+    def utility_dnmc_fast(self, lambdas, PhiMat, noises, nIn=5e2):
+        """
+        NMC estimator, but faster version because we are reusing outer loop samples for computing inner evidence term.
+        U(\theta, d) = (1/N_out)sum_i [log p(G_i | \theta, \lambda, d) - (1/N_in)sum_j log p(G_i | \theta, d, \lambda_i,j)]
+
+        Can optionally supply same set of noises to be used on all designs (its supposed to give smoother utility estimates)
+        """
+        N, p = PhiMat.shape
+
+        beta = self.beta
+        alpha = self.alpha
+
+        nOut = lambdas.shape[0]
+        nIn = min(int(nIn), nOut) 
+
+        evids = np.zeros(nOut)
+
+        nD = PhiMat.shape[0]
+
+        utilities_dnmc = np.zeros(nD)
+        if noises is None:
+            noises = np.random.normal(0, 1/np.sqrt(beta), size=(nOut, 1))
+        for dIdx in range(nD):
+            print("Evaluating estimator at design index: ", dIdx)
+            yvals = np.zeros((nOut, 1))
+
+            loglikelis_out = np.zeros((nOut, 1))
+            for i in range(nOut):
+                lambda_sample = lambdas[[i], :]
+                yvals[i, 0] = (PhiMat[[dIdx], :] @ lambda_sample.T)[0][0] + noises[i, 0]
+
+                loglikelis_out[i, 0] = norm_logpdf(yvals[i:(i + 1)], loc=(PhiMat[[dIdx], :] @ lambda_sample.T)[0][0], scale=1/np.sqrt(beta))
+
+            # for i in range(nOut):
+            # for j in range(nIn):
+                # inner_likelis = np.exp(norm_logpdf(yvals[i:(i+1)], loc=(PhiMat[[dIdx], :] @ lambdas[[j], :].T)[0][0], scale=1/np.sqrt(beta)))[0]
+
+            for i in range(nOut):
+                inner_likelis = np.exp(loglikelis_out[:nIn, :])
+                evids[i] = inner_likelis.mean()
 
             utility_dnmc = (loglikelis_out - np.log(evids)).mean()
             utilities_dnmc[dIdx] = utility_dnmc
@@ -335,14 +363,6 @@ class OEDLG(object):
             eig_analytic[i] = (1/2) * (self.log_det_mat_numpy(Tau_G) - self.log_det_mat_numpy(Tau_G_cond_lambda))
 
         return eig_analytic
-        
-
-    # @staticmethod
-    # def log_det_mat(mat):
-    #     """
-    #     Calculate the log determinant of a matrix.
-    #     """
-    #     return fast_logdet(mat)
     
     @staticmethod
     def log_det_mat_numpy(mat):
