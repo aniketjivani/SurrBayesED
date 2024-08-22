@@ -84,7 +84,7 @@ def getGNoisy(PhiMat, beta_val):
 # test data is always a grid on the full domain (for toy problems)
 
 N_train = 20
-N_test = 900
+N_test = 400
 
 X_train = np.random.uniform([-4.0, 0], [4.0, 1], size=(N_train, 2)) # note that first column is d and not theta!
 
@@ -94,8 +94,8 @@ theta_train = X_train[:, 1]
 
 PhiMat_train = getPhiMat(theta_train, d_train, standardize=False)
 
-d_test_lin = np.linspace(-4, 4, 30)
-theta_test_lin = np.linspace(0, 1, 30)
+d_test_lin = np.linspace(-4, 4, 20)
+theta_test_lin = np.linspace(0, 1, 20)
 
 D_TEST, THETA_TEST = np.meshgrid(d_test_lin, theta_test_lin)
 
@@ -158,4 +158,33 @@ ax.yaxis.set_tick_params(labelsize=15)
 cbar = fig.colorbar(contour_plt, ax=ax, fraction=0.046, pad=0.04)
 cbar.ax.tick_params(labelsize=15)
 fig.tight_layout()
+# %%
+nOut = 500
+nIn = 500
+
+noises = np.random.normal(0, np.sqrt(1/beta), size=(nOut, 1))
+lambdas = oed.sample_prior(nOut)
+
+assert lambdas.shape[0] == nOut, "lambdas should have nOut rows"
+
+utility_nmc = oed.utility_dnmc(lambdas, PhiMat_test, noises, nIn=nIn)
+# %%
+fig, ax = plt.subplots()
+
+
+
+CF = ax.contourf(D_TEST, THETA_TEST, 
+                 utility_nmc.reshape(D_TEST.shape),
+                 cmap=parula_cmap)
+CS = ax.contour(CF, colors='k')
+ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+ax.set_title("NMC utility contours", fontsize=20)
+ax.set_xlabel(r"$d$", fontsize=20)
+ax.set_ylabel(r"$\theta$", fontsize=20)
+ax.xaxis.set_tick_params(labelsize=15)
+ax.yaxis.set_tick_params(labelsize=15)
+# set grid params
+ax.grid(True, which='both', linestyle='--')
+cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=15)
 # %%
