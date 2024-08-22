@@ -121,20 +121,20 @@ class OEDLG(object):
         return log_lik
         
 
-    # def logprior(self, lambdas):
-    #     """
-    #     self.alpha: prior inverse variance / precision of weights lambda.
-    #     lambdas: size n_post_samples x p
-    #     """
-    #     return norm_logpdf(lambdas, loc=0, scale=1/np.sqrt(self.alpha))
+    def logprior(self, lambdas):
+        """
+        self.alpha: prior inverse variance / precision of weights lambda.
+        lambdas: size n_post_samples x p
+        """
+        return norm_logpdf(lambdas, loc=0, scale=1/np.sqrt(self.alpha))
         
-    # def sample_prior(self, n_prior_samples):
-    #     """
-    #     Generate n_prior_samples from the prior distribution.
-    #     """
-    #     p = self.n_param
-    #     prior_samples = np.random.normal(0, 1/np.sqrt(self.alpha), size=(n_prior_samples, p))
-    #     return prior_samples
+    def sample_prior(self, n_prior_samples):
+        """
+        Generate n_prior_samples from the prior distribution.
+        """
+        p = self.n_param
+        prior_samples = np.random.normal(0, 1/np.sqrt(self.alpha), size=(n_prior_samples, p))
+        return prior_samples
 
     def post_logpdf_mcmc(self, lambdas, PhiMat, G, include_prior=True):
         """
@@ -240,44 +240,71 @@ class OEDLG(object):
 
         return predictive_mean, predictive_var        
 
-    def utility_dnmc(self, PhiMat, G, PhiMatTrain, GTrain, nIn=1e5, nOut=1e5, useTrain=False):
+    def utility_dnmc(self, lambdas, PhiMat, noises, nIn=5e2, useTrain=False):
         """
         NMC estimator.
         U(\theta, d) = (1/N_out)sum_i [log p(G_i | \theta, \lambda, d) - (1/N_in)sum_j log p(G_i | \theta, d, \lambda_i,j)]
 
-        we will use the same number of nIn and nOut samples.
+        Can optionally supply same set of noises to be used on all designs.
         """
         N, p = PhiMat.shape
 
         beta = self.beta
         alpha = self.alpha
 
-        # This distinction of having a separate PhiMatTrain and GTrain is necessary when using the definition for the optimization call because we can only use the training data to estimate the utility surface in the computation.
-        lambda_est = self.ridge_regression(PhiMatTrain, GTrain)
+        # lambda_est = self.ridge_regression(PhiMatTrain, GTrain)
 
-        if useTrain:
-            lstsq_estimate = (PhiMatTrain @ lambda_est).reshape(-1, 1)
-            yvals = GTrain.reshape(-1, 1)
-        else:
-            lstsq_estimate = (PhiMat @ lambda_est).reshape(-1, 1)
-            yvals = G.reshape(-1, 1)
+        # if useTrain:
+        #     lstsq_estimate = (PhiMatTrain @ lambda_est).reshape(-1, 1)
+        #     yvals = GTrain.reshape(-1, 1)
+        # else:
+        #     lstsq_estimate = (PhiMat @ lambda_est).reshape(-1, 1)
+        #     yvals = G.reshape(-1, 1)
 
-        # generate nOut values of likelihood
-        loglikelis = norm_logpdf(yvals, loc=lstsq_estimate, scale=1/np.sqrt(beta))
+        # # generate nOut values of likelihood
 
 
-        evids = np.zeros(nIn)
+        # # nOut = int(nOut)
+        # # nIn = int(nIn)
 
-        for i in range(nIn):
-            inner_likelis = np.exp(norm_logpdf(yvals, loc=lstsq_estimate, scale=1/np.sqrt(beta)))
+        # nOut = min(int(nOut), yvals.shape[0])
+        # nIn = int(nIn) if nIn <= yvals.shape[0] else yvals.shape[0]
 
-            evids[i] = np.mean(inner_likelis)
+        nOut = lambdas.shape[0]
+        nIn = min(int(nIn), nOut) 
 
-        utility_dnmc = (loglikelis - np.log(evids)).mean()
+        evids = np.zeros(nOut)
 
-        return utility_dnmc
+        nD = PhiMat.shape[0]
+        # lstsq_estimate = np.zeros((nOut, 1))
 
-    def utility_analytical(self, PhiMat=None):
+        utilities_dnmc = np.zeros(nD)
+        if noises is None:
+            noises = np.random.normal(0, 1/np.sqrt(beta), size=(nOut, 1))
+        for dIdx in range(nD):
+            print("Evaluating estimator at design index: ", dIdx)
+            yvals = np.zeros((nOut, 1))
+
+            loglikelis_out = np.zeros((nOut, 1))
+            for i in range(nOut):
+                lambda_sample = lambdas[[i], :]
+                yvals[i, 0] = (PhiMat[[dIdx], :] @ lambda_sample.T)[0][0] + noises[i, 0]
+
+                loglikelis_out[i, 0] = norm_logpdf(yvals[i:(i + 1)], loc=(PhiMat[[dIdx], :] @ lambda_sample.T)[0][0], scale=1/np.sqrt(beta))
+
+            for i in range(nOut):
+                for j in range(nIn):
+                    inner_likelis = np.exp(norm_logpdf(yvals[i:(i+1)], loc=(PhiMat[[dIdx], :] @ lambdas[[j], :].T)[0][0], scale=1/np.sqrt(beta)))[0]
+                    evids[i] += inner_likelis
+                evids[i] = evids[i] / nIn
+
+            utility_dnmc = (loglikelis_out - np.log(evids)).mean()
+            utilities_dnmc[dIdx] = utility_dnmc
+
+        # return utility_dnmc
+        return utilities_dnmc
+
+    def utility_analytical(self, PhiMat):
         """
         Calculate Fisher-information matrix and maximize EIG i.e. getting a D - optimal design.
         F = PhiMat (\theta, d) ^T * \Tau_G | \lambda^-1 * PhiMat (\theta, d)
