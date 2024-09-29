@@ -6,28 +6,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 _parula_data = [[0.2081, 0.1663, 0.5292], 
                 [0.2116238095, 0.1897809524, 0.5776761905], 
                 [0.212252381, 0.2137714286, 0.6269714286], 
@@ -92,3 +70,92 @@ _parula_data = [[0.2081, 0.1663, 0.5292],
                 [0.9598238095, 0.9218333333, 0.0948380952], 
                 [0.9661, 0.9514428571, 0.0755333333], 
                 [0.9763, 0.9831, 0.0538]]
+
+
+def fmt(x):
+    s = f"{x:.1f}"
+    if s.endswith("0"):
+        s = f"{x:.2f}"
+    return rf"{s}" if plt.rcParams["text.usetex"] else f"{s}"
+
+# plot hifidelity model evaluations at all points
+def plotGTestTrain(G_test, D_TEST, THETA_TEST, X_train, cmap=None):
+    if cmap is None:
+        cmap_to_use = 'viridis'
+    else:
+        cmap_to_use = cmap
+    fig, ax = plt.subplots()
+    CF = ax.contourf(D_TEST, THETA_TEST,
+                    G_test.reshape(D_TEST.shape),
+                    cmap=cmap_to_use
+                    )
+    CS = ax.contour(CF, colors='k')
+    ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+    ax.set_title("Response surface", fontsize=20)
+    ax.set_xlabel(r"$d$", fontsize=20)
+    ax.set_ylabel(r"$\theta$", fontsize=20)
+    ax.xaxis.set_tick_params(labelsize=15)
+    ax.yaxis.set_tick_params(labelsize=15)
+    # set grid params
+    ax.grid(True, which='both', linestyle='--')
+
+    # scatter plot of training data
+    ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
+    cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=15)
+
+
+def plotPostPred(G_post, D_TEST, THETA_TEST, X_train, cmap=None, plot_title = "Posterior predictive mean"):
+    if cmap is None:
+        cmap_to_use = 'viridis'
+    else:
+        cmap_to_use = cmap
+    fig, ax = plt.subplots()
+    CF = ax.contourf(D_TEST, THETA_TEST,
+                    G_post.reshape(D_TEST.shape),
+                    cmap=cmap_to_use
+                    )
+    CS = ax.contour(CF, colors='k')
+    ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+    ax.set_title(plot_title, fontsize=20)
+    ax.set_xlabel(r"$d$", fontsize=20)
+    ax.set_ylabel(r"$\theta$", fontsize=20)
+    ax.xaxis.set_tick_params(labelsize=15)
+    ax.yaxis.set_tick_params(labelsize=15)
+    # set grid params
+    ax.grid(True, which='both', linestyle='--')
+
+    # scatter plot of training data
+    ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
+    cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=15)
+
+def plotUtils(allUtils, D_TEST, THETA_TEST, X_train, cmap=None, plot_title = "Utility surface"):
+    if cmap is None:
+        cmap_to_use = 'viridis'
+    else:
+        cmap_to_use = cmap
+    fig, ax = plt.subplots()
+    CF = ax.contourf(D_TEST, THETA_TEST,
+                    allUtils.reshape(D_TEST.shape),
+                    cmap=cmap_to_use
+                    )
+    CS = ax.contour(CF, colors='k')
+    ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+    ax.set_title(plot_title, fontsize=20)
+    ax.set_xlabel(r"$d$", fontsize=20)
+    ax.set_ylabel(r"$\theta$", fontsize=20)
+    ax.xaxis.set_tick_params(labelsize=15)
+    ax.yaxis.set_tick_params(labelsize=15)
+    # set grid params
+    ax.grid(True, which='both', linestyle='--')
+
+    # scatter plot of training data
+    ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
+    cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=15)
+
+

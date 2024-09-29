@@ -41,7 +41,7 @@ def model_4(theta, d):
     return theta * d + 2 * np.sin(theta * d) + 3 * np.exp(-(theta**2) * (d - 5)**2) * np.sin(2 * d) + 5 * np.exp(-(theta**2) * (d - 15)**2)
 
 # %%
-beta = 25.0
+beta = 36.0
 alpha = 2.0
 
 def oracle_lambda():
@@ -85,8 +85,11 @@ def getGNoisy(PhiMat, beta_val):
 
 N_train = 20
 N_test = 400
+rng = np.random.default_rng(20241996)
 
-X_train = np.random.uniform([-4.0, 0], [4.0, 1], size=(N_train, 2)) # note that first column is d and not theta!
+X_train = rng.uniform([-4.0, 0], [4.0, 1], size=(N_train, 2)) # note that first column is d and not theta!
+
+# X_train = np.random.uniform([-4.0, 0], [4.0, 1], size=(N_train, 2)) # note that first column is d and not theta!
 
 
 d_train = X_train[:, 0]
@@ -141,50 +144,252 @@ ax.grid(True, which='both', linestyle='--')
 cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
 cbar.ax.tick_params(labelsize=15)
 
-
-
-# %% make a plot of G test values, with overlaid scatter points of training data.
-
+# %% 
+# plot hifidelity model evaluations at all points
 fig, ax = plt.subplots()
-contour_plt = ax.contourf(D_TEST, THETA_TEST, 
-                          G_test.reshape(D_TEST.shape), 
-                          cmap=parula_cmap)
-ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
-ax.set_xlabel(r'$d$', fontsize=20)
-ax.set_ylabel(r'$\theta$', fontsize=20)
-ax.set_title("Train inputs and contours of G", fontsize=20)
-ax.xaxis.set_tick_params(labelsize=15)
-ax.yaxis.set_tick_params(labelsize=15)
-cbar = fig.colorbar(contour_plt, ax=ax, fraction=0.046, pad=0.04)
-cbar.ax.tick_params(labelsize=15)
-fig.tight_layout()
-# %%
-nOut = 500
-nIn = 500
-
-noises = np.random.normal(0, np.sqrt(1/beta), size=(nOut, 1))
-lambdas = oed.sample_prior(nOut)
-
-assert lambdas.shape[0] == nOut, "lambdas should have nOut rows"
-
-utility_nmc = oed.utility_dnmc(lambdas, PhiMat_test, noises, nIn=nIn)
-# %%
-fig, ax = plt.subplots()
-
-
-
-CF = ax.contourf(D_TEST, THETA_TEST, 
-                 utility_nmc.reshape(D_TEST.shape),
+CF = ax.contourf(D_TEST, THETA_TEST,
+                 G_test.reshape(D_TEST.shape),
                  cmap=parula_cmap)
 CS = ax.contour(CF, colors='k')
 ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
-ax.set_title("NMC utility contours", fontsize=20)
+ax.set_title("Noisy response surface", fontsize=20)
 ax.set_xlabel(r"$d$", fontsize=20)
 ax.set_ylabel(r"$\theta$", fontsize=20)
 ax.xaxis.set_tick_params(labelsize=15)
 ax.yaxis.set_tick_params(labelsize=15)
 # set grid params
 ax.grid(True, which='both', linestyle='--')
+
+# scatter plot of training data
+ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
 cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
 cbar.ax.tick_params(labelsize=15)
+
+
+
+# %% Select optimal point for next experiment.
+opt_x_idx = np.unravel_index(utility_arr.argmax(), utility_arr.shape)
+theta_opt = THETA_TEST[opt_x_idx]
+d_opt = D_TEST[opt_x_idx]
+
+print(f"Optimal theta: {theta_opt}, optimal d: {d_opt}")
+# %% Plot posterior predictive response surface.
+cov_post = np.linalg.inv(beta * (PhiMat_train.T @ PhiMat_train) + alpha * np.eye(PhiMat_train.shape[1]))
+
+mean_post = (beta * (cov_post @ PhiMat_train.T @ G_train)).reshape(-1, 1)
+
+G_mean_post = PhiMat_test @ mean_post
+G_var_post = (1/beta) + np.sum(PhiMat_test.dot(cov_post) * PhiMat_test, axis=1)
+
+fig, ax = plt.subplots()
+CF = ax.contourf(D_TEST, THETA_TEST,
+                 G_mean_post.reshape(D_TEST.shape),
+                 cmap=parula_cmap)
+CS = ax.contour(CF, colors='k')
+ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+ax.set_title("Posterior Predictive Mean", fontsize=20)
+ax.set_xlabel(r"$d$", fontsize=20)
+ax.set_ylabel(r"$\theta$", fontsize=20)
+ax.xaxis.set_tick_params(labelsize=15)
+ax.yaxis.set_tick_params(labelsize=15)
+# set grid params
+ax.grid(True, which='both', linestyle='--')
+
+# scatter plot of training data
+ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
+cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=15)
+
+# %%
+fig, ax = plt.subplots()
+CF = ax.contourf(D_TEST, THETA_TEST,
+                 np.sqrt(G_var_post).reshape(D_TEST.shape),
+                 cmap=parula_cmap)
+CS = ax.contour(CF, colors='k')
+ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+ax.set_title("Posterior Predictive Std.", fontsize=20)
+ax.set_xlabel(r"$d$", fontsize=20)
+ax.set_ylabel(r"$\theta$", fontsize=20)
+ax.xaxis.set_tick_params(labelsize=15)
+ax.yaxis.set_tick_params(labelsize=15)
+# set grid params
+ax.grid(True, which='both', linestyle='--')
+
+# scatter plot of training data
+ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+
+cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=15)
+
+# %% Bayesian optimization for design of experiments.
+
+# Calculate analytic utility at training points to use as n_init before building GP and starting optimization.
+import torch
+from botorch.models import SingleTaskGP
+from botorch.models.transforms import Normalize, Standardize
+from botorch.fit import fit_gpytorch_mll
+from gpytorch.mlls import ExactMarginalLogLikelihood
+
+utility_analytic_train = oed.utility_analytical(PhiMat_train)
+
+train_X = torch.tensor(X_train, dtype=torch.double)
+train_Y = torch.tensor(utility_analytic_train.reshape(-1, 1), dtype=torch.double)
+
+gp = SingleTaskGP(
+    train_X=train_X,
+    train_Y=train_Y,
+    input_transform=Normalize(d=2),
+    outcome_transform=Standardize(m=1),
+)
+mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+fit_gpytorch_mll(mll)
+
+from botorch.acquisition.analytic import LogExpectedImprovement
+from botorch.optim import optimize_acqf
+logEI = LogExpectedImprovement(model=gp, best_f=train_Y.max())
+bounds = torch.stack([torch.tensor([-4.0, 0.0]), torch.tensor([4.0, 1.0])]).to(torch.double)
+candidate, acq_value = optimize_acqf(
+    logEI, bounds=bounds, q=1, num_restarts=5, raw_samples=20,
+)
+
+# returns -4, 1
+
+# %% add new point to training set, update posterior and posterior predictive plots.
+
+X_train_new = np.vstack([X_train, candidate.detach().numpy()])
+
+d_train_new = X_train_new[:, 0]
+theta_train_new = X_train_new[:, 1]
+
+PhiMat_train_new = getPhiMat(theta_train_new, d_train_new, standardize=False)
+G_train_new = getGNoisy(PhiMat_train_new, beta)
+
+# redo posterior
+cov_post_new = np.linalg.inv(beta * (PhiMat_train_new.T @ PhiMat_train_new) 
+                            # + cov_post)
+                             + alpha * np.eye(PhiMat_train_new.shape[1]))
+
+# mean_post_new = beta * cov_post_new @ ((PhiMat_train_new.T @ G_train_new).reshape(-1, 1) + np.linalg.inv(cov_post) @ mean_post) @ (PhiMat_)
+
+mean_post_new = (beta * (cov_post_new @ PhiMat_train_new.T @ G_train_new)).reshape(-1, 1)
+
+G_mean_post_new = PhiMat_test @ mean_post_new
+G_var_post_new = (1/beta) + np.sum(PhiMat_test.dot(cov_post_new) * PhiMat_test, axis=1)
+
+# %%
+fig, ax = plt.subplots()
+CF = ax.contourf(D_TEST, THETA_TEST,
+                 G_mean_post_new.reshape(D_TEST.shape),
+                 cmap=parula_cmap)
+CS = ax.contour(CF, colors='k')
+ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+ax.set_title("Posterior Predictive Mean", fontsize=20)
+ax.set_xlabel(r"$d$", fontsize=20)
+ax.set_ylabel(r"$\theta$", fontsize=20)
+ax.xaxis.set_tick_params(labelsize=15)
+ax.yaxis.set_tick_params(labelsize=15)
+# set grid params
+ax.grid(True, which='both', linestyle='--')
+
+# scatter plot of training data
+ax.scatter(X_train_new[:, 0], X_train_new[:, 1], c='r', marker='x', s=50)
+
+cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=15)
+
+# %%
+fig, ax = plt.subplots()
+CF = ax.contourf(D_TEST, THETA_TEST,
+                 np.sqrt(G_var_post_new).reshape(D_TEST.shape),
+                 cmap=parula_cmap)
+CS = ax.contour(CF, colors='k')
+ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+ax.set_title("Posterior Predictive Std.", fontsize=20)
+ax.set_xlabel(r"$d$", fontsize=20)
+ax.set_ylabel(r"$\theta$", fontsize=20)
+ax.xaxis.set_tick_params(labelsize=15)
+ax.yaxis.set_tick_params(labelsize=15)
+# set grid params
+ax.grid(True, which='both', linestyle='--')
+
+# scatter plot of training data
+ax.scatter(X_train_new[:, 0], X_train_new[:, 1], c='r', marker='x', s=50)
+
+cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=15)
+
+# %%
+utility_analytic_train = oed.utility_analytical(PhiMat_train_new)
+
+train_X = torch.tensor(X_train_new, dtype=torch.double)
+train_Y = torch.tensor(utility_analytic_train.reshape(-1, 1), dtype=torch.double)
+
+gp = SingleTaskGP(
+    train_X=train_X,
+    train_Y=train_Y,
+    input_transform=Normalize(d=2),
+    outcome_transform=Standardize(m=1),
+)
+mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+fit_gpytorch_mll(mll)
+
+from botorch.acquisition.analytic import LogExpectedImprovement
+from botorch.optim import optimize_acqf
+logEI = LogExpectedImprovement(model=gp, best_f=train_Y.max())
+bounds = torch.stack([torch.tensor([-4.0, 0.0]), torch.tensor([4.0, 1.0])]).to(torch.double)
+candidate, acq_value = optimize_acqf(
+    logEI, bounds=bounds, q=1, num_restarts=5, raw_samples=20,
+)
+print(candidate)
+
+# %%
+
+# # %% make a plot of G test values, with overlaid scatter points of training data.
+
+# fig, ax = plt.subplots()
+# contour_plt = ax.contourf(D_TEST, THETA_TEST, 
+#                           G_test.reshape(D_TEST.shape), 
+#                           cmap=parula_cmap)
+# ax.scatter(X_train[:, 0], X_train[:, 1], c='r', marker='x', s=50)
+# ax.set_xlabel(r'$d$', fontsize=20)
+# ax.set_ylabel(r'$\theta$', fontsize=20)
+# ax.set_title("Train inputs and contours of G", fontsize=20)
+# ax.xaxis.set_tick_params(labelsize=15)
+# ax.yaxis.set_tick_params(labelsize=15)
+# cbar = fig.colorbar(contour_plt, ax=ax, fraction=0.046, pad=0.04)
+# cbar.ax.tick_params(labelsize=15)
+# fig.tight_layout()
+# # %%
+# nOut = 100
+# nIn = 100
+
+# noises = np.random.normal(0, np.sqrt(1/beta), size=(nOut, 1))
+# lambdas = oed.sample_prior(nOut)
+
+# assert lambdas.shape[0] == nOut, "lambdas should have nOut rows"
+
+# utility_nmc = oed.utility_dnmc_fast(lambdas, PhiMat_test, noises, nIn=nIn)
+# # %%
+# fig, ax = plt.subplots()
+
+
+
+# CF = ax.contourf(D_TEST, THETA_TEST, 
+#                  utility_nmc.reshape(D_TEST.shape),
+#                  cmap=parula_cmap, vmin=1.2, vmax=6.0)
+# CS = ax.contour(CF, colors='k')
+# ax.clabel(CS, CS.levels, inline=True, fmt=fmt, fontsize=15)
+# ax.set_title("NMC utility contours", fontsize=20)
+# ax.set_xlabel(r"$d$", fontsize=20)
+# ax.set_ylabel(r"$\theta$", fontsize=20)
+# ax.xaxis.set_tick_params(labelsize=15)
+# ax.yaxis.set_tick_params(labelsize=15)
+# # set grid params
+# ax.grid(True, which='both', linestyle='--')
+# cbar = fig.colorbar(CF, ax=ax, fraction=0.046, pad=0.04)
+# cbar.ax.tick_params(labelsize=15)
+# # %%
+
 # %%

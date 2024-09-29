@@ -464,12 +464,48 @@ plt.title("Least Squares")
 
 
 
+# %%
+
+# Generate training data as G = Phi * lambda + noise
+
+beta = 25.0
+alpha = 2.0
+
+def oracle_lambda():
+    return np.array([3.946, -11.825, 0.012, 8.087, 0.165, 4.397, -2.121, -0.655, 0.61, -0.152])
+
+def getPhiMat(theta_vals, d_vals):
+
+    assert len(theta_vals) == len(d_vals), "theta_vals and d_vals should have the same length."
+    N_vals = len(theta_vals)
+
+    PhiMat = np.vstack([np.ones(N_vals), theta_vals, d_vals, theta_vals**2, d_vals**2, theta_vals*d_vals, theta_vals**2*d_vals, theta_vals*d_vals**2, theta_vals**2*d_vals**2, theta_vals**3*d_vals**3]).T
+    return PhiMat
+
+
+# Replace by nonlinear model from test_problems.py if we want to introduce model misspecification.
+def getGNoisy(PhiMat, beta_val):
+    """
+    return training data G = PhiMat * lambda + noise where noise variance is 1/beta_val and lambda is the oracle lambda.
+    """
+    N, p = PhiMat.shape
+
+    lambda_oracle = oracle_lambda()
+    noise = np.random.normal(0, np.sqrt(1/beta_val), size=N)
+
+    GNoisy = np.dot(PhiMat, lambda_oracle) + noise
+    return GNoisy
+
+
+
+
 # %% Plots of posterior density and samples in the predictive
 # this is for illustration purposes, we will repeat this plot when we acquire new samples through OED. For now we will just show the result of using subset of the training data in each stage.
 
 
 
-# %% Plots of analytic vs estimated utility
+# %% Plots of analytic vs estimated utility (we will probably use lstsq from numpy with the correct feature matrix that has 1/alpha I included for regularization.)
+
 
 
 
